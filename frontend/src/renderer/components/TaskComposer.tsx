@@ -79,7 +79,9 @@ export function TaskComposer({
 	const modelId = useId();
 	const agentId = useId();
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const [prompt, setPrompt] = useState("");
+	const promptRef = useRef<HTMLTextAreaElement>(null);
+	const promptValueRef = useRef("");
+	const [hasPrompt, setHasPrompt] = useState(false);
 	const [model, setModel] = useState("");
 	const [mode, setMode] = useState("");
 	const [agent, setAgent] = useState("");
@@ -191,7 +193,7 @@ export function TaskComposer({
 		}
 	}, [defaultModelForSelectedAgent, defaultModeForSelectedAgent, modelTouched]);
 
-	const isDirty = prompt.trim() !== "" || modelTouched || attachments.length > 0;
+	const isDirty = hasPrompt || modelTouched || attachments.length > 0;
 	useEffect(() => {
 		onDirtyChange?.(isDirty);
 	}, [isDirty, onDirtyChange]);
@@ -220,7 +222,7 @@ export function TaskComposer({
 			const attachmentPayloads = await toSettledPayload();
 			const sessionId = await createTask({
 				projectId,
-				brief: prompt,
+				brief: promptValueRef.current,
 				// The visible selection is authoritative: it is either the user's pick
 				// or the resolved default, so spawning names it explicitly.
 				agent: selectedAgent ? (selectedAgent as CreateTaskInput["agent"]) : undefined,
@@ -228,6 +230,9 @@ export function TaskComposer({
 				mode: interfaceMode,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 			});
+			promptValueRef.current = "";
+			if (promptRef.current) promptRef.current.value = "";
+			setHasPrompt(false);
 			onCreated(sessionId);
 		} catch (err) {
 			setCanCreateAsTUI(
@@ -287,10 +292,17 @@ export function TaskComposer({
 			<textarea
 				id={promptId}
 				autoFocus={autoFocusTitle}
+				ref={promptRef}
 				className="min-h-(--size-composer-prompt-min) w-full resize-none bg-transparent px-4 pb-3 pt-4 text-md leading-relaxed text-foreground outline-none placeholder:text-passive"
 				placeholder={t("newTask.taskPlaceholder")}
-				value={prompt}
-				onChange={(event) => setPrompt(event.target.value)}
+				onChange={(event) => {
+					const value = event.target.value;
+					promptValueRef.current = value;
+					setHasPrompt((current) => {
+						const next = value.trim() !== "";
+						return current === next ? current : next;
+					});
+				}}
 				onPaste={handlePaste}
 				onKeyDown={(event) => {
 					if (event.key === "Enter" && !event.shiftKey && !event.altKey && !event.nativeEvent.isComposing) {
