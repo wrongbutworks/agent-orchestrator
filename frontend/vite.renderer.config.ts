@@ -77,7 +77,11 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./src/renderer", import.meta.url)),
+			"@aoagents/product-ui": fileURLToPath(
+				new URL("../packages/product-ui/src/index.ts", import.meta.url),
+			),
 		},
+		dedupe: ["react", "react-dom"],
 	},
 	// Dev proxy for VITE_NO_ELECTRON=1 browser preview — forwards /api and /mux
 	// to the daemon so the renderer can be tested against a running daemon from

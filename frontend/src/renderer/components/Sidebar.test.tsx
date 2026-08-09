@@ -33,9 +33,24 @@ const { getMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateS
 		commandPaletteEnabled: { current: true },
 	}),
 );
+const cloudSessionState = vi.hoisted(() => ({
+	current: {
+		session: null as {
+			authProvider: "workos";
+			user: { id: string; email: string; displayName: string };
+			storedAt: string;
+		} | null,
+		status: "unauthenticated" as "loading" | "authenticated" | "unauthenticated",
+		signIn: vi.fn(),
+		signOut: vi.fn().mockResolvedValue(undefined),
+	},
+}));
 
 vi.mock("../lib/rename-session", () => ({ renameSession: renameSessionMock }));
 vi.mock("../lib/spawn-orchestrator", () => ({ spawnOrchestrator: spawnMock }));
+vi.mock("../lib/cloud-session", () => ({
+	useCloudSession: () => cloudSessionState.current,
+}));
 
 vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
@@ -242,6 +257,12 @@ beforeEach(() => {
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
+	cloudSessionState.current = {
+		session: null,
+		status: "unauthenticated",
+		signIn: vi.fn(),
+		signOut: vi.fn().mockResolvedValue(undefined),
+	};
 });
 
 afterEach(() => {
@@ -249,6 +270,39 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
+	it("starts Cloud sign-in from the account row", async () => {
+		renderSidebar();
+
+		await userEvent.click(screen.getAllByRole("button", { name: "Sign in to AO Cloud" })[0]);
+
+		expect(cloudSessionState.current.signIn).toHaveBeenCalledOnce();
+	});
+
+	it("shows the signed-in email and signs out from the account menu", async () => {
+		cloudSessionState.current = {
+			session: {
+				authProvider: "workos",
+				user: {
+					id: "user_123",
+					email: "person@example.com",
+					displayName: "Person Example",
+				},
+				storedAt: "2026-08-09T00:00:00.000Z",
+			},
+			status: "authenticated",
+			signIn: vi.fn(),
+			signOut: vi.fn().mockResolvedValue(undefined),
+		};
+		renderSidebar();
+
+		await userEvent.click(
+			screen.getAllByRole("button", { name: "Signed in as person@example.com" })[0],
+		);
+		await userEvent.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+
+		expect(cloudSessionState.current.signOut).toHaveBeenCalledOnce();
+	});
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 

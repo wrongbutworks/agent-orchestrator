@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const ACCESS_TOKEN = `header.${Buffer.from(
   JSON.stringify({ exp: 4_102_444_800, sid: "session_123" }),
 ).toString("base64url")}.signature`;
+const EXPIRED_ACCESS_TOKEN = `header.${Buffer.from(
+  JSON.stringify({ exp: 1, sid: "session_expired" }),
+).toString("base64url")}.signature`;
 
 const mocks = vi.hoisted(() => ({
   authenticateWithCode: vi.fn(),
@@ -65,9 +68,21 @@ describe("native WorkOS authentication", () => {
         lastName: "Example",
       },
     });
+    mocks.authenticateWithRefreshToken.mockResolvedValue({
+      accessToken: ACCESS_TOKEN,
+      refreshToken: "refresh_456",
+      user: {
+        id: "user_123",
+        email: "person@example.com",
+        name: "Person Example",
+        firstName: "Person",
+        lastName: "Example",
+      },
+    });
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await rm(dataDir, { recursive: true, force: true });
   });
 
@@ -90,7 +105,6 @@ describe("native WorkOS authentication", () => {
       dataDir,
     );
     expect(session).toMatchObject({
-      accessToken: ACCESS_TOKEN,
       authProvider: "workos",
       user: {
         id: "user_123",
@@ -98,6 +112,8 @@ describe("native WorkOS authentication", () => {
         displayName: "Person Example",
       },
     });
+    expect(session).not.toHaveProperty("accessToken");
+    expect(session).not.toHaveProperty("refreshToken");
     await expect(getCloudSession(dataDir)).resolves.toMatchObject({
       user: { email: "person@example.com" },
     });
@@ -111,6 +127,74 @@ describe("native WorkOS authentication", () => {
         dataDir,
       ),
     ).rejects.toThrow("state did not match");
+  });
+
+  it("rejects incomplete and expired callbacks", async () => {
+    await expect(
+      handleCloudDeepLink("ao-app://callback?code=code_123", dataDir),
+    ).rejects.toThrow("callback is incomplete");
+
+    const now = 1_800_000_000_000;
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    await beginCloudSignIn(dataDir);
+    vi.mocked(Date.now).mockReturnValue(now + 10 * 60 * 1000 + 1);
+
+    await expect(
+      handleCloudDeepLink(
+        "ao-app://callback?code=code_123&state=state_123",
+        dataDir,
+      ),
+    ).rejects.toThrow("sign-in request expired");
+  });
+
+  it("refreshes an expired access token without exposing either token", async () => {
+    mocks.authenticateWithCode.mockResolvedValueOnce({
+      accessToken: EXPIRED_ACCESS_TOKEN,
+      refreshToken: "refresh_123",
+      user: {
+        id: "user_123",
+        email: "person@example.com",
+        name: "Person Example",
+      },
+    });
+    await beginCloudSignIn(dataDir);
+    await handleCloudDeepLink(
+      "ao-app://callback?code=code_123&state=state_123",
+      dataDir,
+    );
+
+    const account = await getCloudSession(dataDir);
+
+    expect(mocks.authenticateWithRefreshToken).toHaveBeenCalledWith({
+      clientId: expect.any(String),
+      refreshToken: "refresh_123",
+    });
+    expect(account?.user.email).toBe("person@example.com");
+    expect(account).not.toHaveProperty("accessToken");
+    expect(account).not.toHaveProperty("refreshToken");
+  });
+
+  it("clears the stored session when token refresh fails", async () => {
+    mocks.authenticateWithCode.mockResolvedValueOnce({
+      accessToken: EXPIRED_ACCESS_TOKEN,
+      refreshToken: "refresh_123",
+      user: {
+        id: "user_123",
+        email: "person@example.com",
+        name: "Person Example",
+      },
+    });
+    mocks.authenticateWithRefreshToken.mockRejectedValueOnce(
+      new Error("refresh denied"),
+    );
+    await beginCloudSignIn(dataDir);
+    await handleCloudDeepLink(
+      "ao-app://callback?code=code_123&state=state_123",
+      dataDir,
+    );
+
+    await expect(getCloudSession(dataDir)).resolves.toBeNull();
+    await expect(getCloudSession(dataDir)).resolves.toBeNull();
   });
 
   it("signs out locally without opening the browser", async () => {

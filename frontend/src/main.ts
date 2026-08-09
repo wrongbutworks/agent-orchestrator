@@ -1791,7 +1791,7 @@ function cloudDataDir(): string {
 		: path.join(os.homedir(), ".ao");
 }
 
-function notifyRenderersOfCloudSession(session: import("./main/cloud-auth").CloudSession | null): void {
+function notifyRenderersOfCloudSession(session: import("./shared/cloud-account").CloudAccount | null): void {
 	for (const wc of webContents.getAllWebContents()) {
 		wc.send("cloud:sessionChanged", session);
 	}

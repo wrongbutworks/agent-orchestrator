@@ -126,3 +126,47 @@ describe("preload uiSettings bridge", () => {
 		expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, "uiSettings:set", { locale: "zh-CN" });
 	});
 });
+
+describe("preload Cloud account bridge", () => {
+	it("invokes account actions over IPC", async () => {
+		const account = {
+			authProvider: "workos" as const,
+			user: {
+				id: "user_123",
+				email: "person@example.com",
+				displayName: "Person Example",
+			},
+			storedAt: "2026-08-09T00:00:00.000Z",
+		};
+		electronMocks.invoke.mockResolvedValueOnce(account);
+
+		await expect(exposedBridge().cloud.getSession()).resolves.toEqual(account);
+		await exposedBridge().cloud.signIn();
+		await exposedBridge().cloud.signOut();
+
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(1, "cloud:getSession");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, "cloud:signIn");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(3, "cloud:signOut");
+	});
+
+	it("delivers account changes and removes the wrapped listener", () => {
+		const listener = vi.fn();
+		const dispose = exposedBridge().cloud.onSessionChanged(listener);
+		const wrapped = electronMocks.listeners.get("cloud:sessionChanged");
+		const account = {
+			authProvider: "workos" as const,
+			user: {
+				id: "user_123",
+				email: "person@example.com",
+				displayName: "Person Example",
+			},
+			storedAt: "2026-08-09T00:00:00.000Z",
+		};
+
+		wrapped?.({}, account);
+		expect(listener).toHaveBeenCalledWith(account);
+
+		dispose();
+		expect(electronMocks.off).toHaveBeenCalledWith("cloud:sessionChanged", wrapped);
+	});
+});

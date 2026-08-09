@@ -8,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import type { CloudAccount } from "../shared/cloud-account";
 
 const CLIENT_ID =
   import.meta.env.VITE_WORKOS_CLIENT_ID?.trim() ||
@@ -18,18 +19,8 @@ const LEGACY_SESSION_FILE = "cloud-session.json";
 const PKCE_TTL_MS = 10 * 60 * 1000;
 const workos = CLIENT_ID ? createWorkOS({ clientId: CLIENT_ID }) : null;
 
-export interface CloudSession {
+interface StoredSession extends CloudAccount {
   accessToken: string;
-  authProvider: "workos";
-  user: {
-    id: string;
-    email: string;
-    displayName: string;
-  };
-  storedAt: string;
-}
-
-interface StoredSession extends CloudSession {
   refreshToken: string;
 }
 
@@ -116,8 +107,12 @@ function toStoredSession(
   };
 }
 
-function publicSession(session: StoredSession): CloudSession {
-  const { refreshToken: _refreshToken, ...result } = session;
+function publicAccount(session: StoredSession): CloudAccount {
+  const {
+    accessToken: _accessToken,
+    refreshToken: _refreshToken,
+    ...result
+  } = session;
   return result;
 }
 
@@ -140,12 +135,12 @@ function tokenExpiresSoon(token: string): boolean {
 
 export async function getCloudSession(
   dataDir: string,
-): Promise<CloudSession | null> {
+): Promise<CloudAccount | null> {
   if (!workos) return null;
   const store = await readAuthStore(dataDir);
   if (!store.session) return null;
   if (!tokenExpiresSoon(store.session.accessToken)) {
-    return publicSession(store.session);
+    return publicAccount(store.session);
   }
 
   try {
@@ -159,7 +154,7 @@ export async function getCloudSession(
       refreshed.user,
     );
     await writeAuthStore(dataDir, { ...store, session });
-    return publicSession(session);
+    return publicAccount(session);
   } catch {
     await removeAuthStore(dataDir);
     return null;
@@ -193,7 +188,7 @@ export async function beginCloudSignIn(dataDir: string): Promise<void> {
 export async function handleCloudDeepLink(
   rawURL: string,
   dataDir: string,
-): Promise<CloudSession | null> {
+): Promise<CloudAccount | null> {
   if (!workos) throw new Error("WorkOS is not configured.");
   const url = new URL(rawURL);
   if (url.protocol !== "ao-app:" || url.hostname !== "callback") return null;
@@ -228,7 +223,7 @@ export async function handleCloudDeepLink(
     result.user,
   );
   await writeAuthStore(dataDir, { session, pkce: null });
-  return publicSession(session);
+  return publicAccount(session);
 }
 
 export async function signOutCloud(dataDir: string): Promise<void> {
@@ -247,7 +242,7 @@ export function registerCloudProtocol(): void {
 
 export function installCloudIPC(
   getDataDir: () => string,
-  notifyRenderers: (session: CloudSession | null) => void,
+  notifyRenderers: (session: CloudAccount | null) => void,
 ): void {
   ipcMain.handle("cloud:getSession", () => getCloudSession(getDataDir()));
   ipcMain.handle("cloud:signIn", async () => {
