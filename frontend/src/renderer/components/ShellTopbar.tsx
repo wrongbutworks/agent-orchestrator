@@ -329,28 +329,32 @@ export function ShellTopbar({
 								</Tooltip>
 							</>
 						) : null}
-						{/* Kill control sits beside the orchestrator link for active workers —
-						    moved here from the inspector's Summary "Danger zone". */}
-						{!isOrchestrator && session && sessionIsActive(session) ? (
-							<TopbarKillButton
-								key={session.id}
-								session={session}
-								orchestratorId={orchestrator?.id}
-								onKilled={(workspaceId, orchestratorId) => {
-									if (orchestratorId) {
-										void navigate({
-											to: "/projects/$projectId/sessions/$sessionId",
-											params: { projectId: workspaceId, sessionId: orchestratorId },
-										});
-										return;
-									}
-									void navigate({ to: "/projects/$projectId", params: { projectId: workspaceId } });
-								}}
-							/>
-						) : null}
-						{!isOrchestrator && sessionAction ? (
-							<div className="inline-flex shrink-0 items-center" style={noDragStyle}>
-								{sessionAction}
+						{/* Interface switching and termination both act on the worker session.
+						    Keep them as one tight cluster, separated from navigation actions by space. */}
+						{!isOrchestrator && session && (sessionAction || sessionIsActive(session)) ? (
+							<div
+								className="mr-0.5 inline-flex shrink-0 items-center gap-0.5"
+								data-testid="session-local-actions"
+								style={noDragStyle}
+							>
+								{sessionAction ? <div className="inline-flex shrink-0 items-center">{sessionAction}</div> : null}
+								{sessionIsActive(session) ? (
+									<TopbarKillButton
+										key={session.id}
+										session={session}
+										orchestratorId={orchestrator?.id}
+										onKilled={(workspaceId, orchestratorId) => {
+											if (orchestratorId) {
+												void navigate({
+													to: "/projects/$projectId/sessions/$sessionId",
+													params: { projectId: workspaceId, sessionId: orchestratorId },
+												});
+												return;
+											}
+											void navigate({ to: "/projects/$projectId", params: { projectId: workspaceId } });
+										}}
+									/>
+								) : null}
 							</div>
 						) : null}
 						{!isOrchestrator ? (
@@ -383,7 +387,10 @@ export function ShellTopbar({
 					/>
 				) : null}
 				{/* Notifications trail the primary actions but stay left of the inspector toggle. */}
-				<NotificationCenter style={noDragStyle} />
+				<NotificationCenter
+					className={cn(isSessionRoute && !isOrchestrator && "-mr-0.5")}
+					style={noDragStyle}
+				/>
 				{/* The inspector header owns closing; the shell only restores a fully
 				    collapsed worker rail. Keep this final so it remains at the far right. */}
 				{isSessionRoute && !isOrchestrator && !isInspectorOpen ? (

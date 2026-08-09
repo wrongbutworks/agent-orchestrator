@@ -52,7 +52,9 @@ vi.mock("../lib/telemetry", () => ({
 }));
 vi.mock("./NewTaskDialog", () => ({ NewTaskDialog: () => null }));
 vi.mock("./NotificationCenter", () => ({
-	NotificationCenter: () => <button aria-label="Notifications" type="button" />,
+	NotificationCenter: ({ className }: { className?: string }) => (
+		<button aria-label="Notifications" className={className} type="button" />
+	),
 }));
 
 const worker: WorkspaceSession = {
@@ -173,7 +175,7 @@ beforeEach(() => {
 });
 
 describe("ShellTopbar status pill", () => {
-	it("shows a flat worker identity and places the interface action beside Kill", () => {
+	it("groups the interface action immediately before Kill", () => {
 		renderTopbar(
 			sessionWith(),
 			false,
@@ -183,6 +185,7 @@ describe("ShellTopbar status pill", () => {
 		);
 
 		const identity = screen.getByTestId("session-topbar-identity");
+		const localActions = screen.getByTestId("session-local-actions");
 		const kill = screen.getByRole("button", { name: "Kill session" });
 		const switchInterface = screen.getByRole("button", { name: "Switch interface" });
 		expect(identity).toHaveTextContent("do the thing");
@@ -190,7 +193,10 @@ describe("ShellTopbar status pill", () => {
 		expect(identity.querySelector(".workspace-topbar__identity-separator")).toBeInTheDocument();
 		expect(identity).not.toContainElement(switchInterface);
 		expect(screen.queryByTestId("session-identity-card")).not.toBeInTheDocument();
-		expect(kill.compareDocumentPosition(switchInterface) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(localActions).toHaveClass("gap-0.5", "mr-0.5");
+		expect(localActions).toContainElement(switchInterface);
+		expect(localActions).toContainElement(kill);
+		expect(switchInterface.compareDocumentPosition(kill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 
 	it("shows project identity for the orchestrator and places the interface action beside Task", () => {
@@ -231,6 +237,7 @@ describe("ShellTopbar status pill", () => {
 
 		expect(openOrchestrator.compareDocumentPosition(notification) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		expect(within(actionRegion).queryByTestId("topbar-utility-separator")).not.toBeInTheDocument();
+		expect(notification).toHaveClass("-mr-0.5");
 		expect(header).toHaveClass("pr-2.5");
 	});
 
