@@ -14,7 +14,6 @@ import {
 	GitMerge,
 	Info,
 	Play,
-	Terminal,
 	Trash2,
 	Loader2,
 	X,
@@ -213,9 +212,11 @@ export function SessionInspector({
 						<span className="relative inline-flex shrink-0 [&_svg]:size-icon-md">
 							{entry.icon}
 							{entry.id === "browser" && browserUnseen ? (
-								<span aria-hidden="true" className="absolute -right-1 -top-1 inline-flex size-dot-sm">
-									{/* Pinging halo + solid core: a glowing beacon that draws the eye to
-									    a link that arrived in the terminal, cleared once the tab opens. */}
+								<span
+									aria-hidden="true"
+									className="absolute -right-1 -top-1 inline-flex size-dot-sm"
+									data-testid="browser-unseen-indicator"
+								>
 									<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
 									<span className="relative inline-flex size-dot-sm rounded-full bg-primary ring-2 ring-background" />
 								</span>
@@ -503,7 +504,7 @@ function UsageDisclosureRow({
 	const exactTotal = totalTokens?.toLocaleString("en-US");
 
 	return (
-		<div>
+		<div className="p-2">
 			<button
 				aria-controls={detailID}
 				aria-expanded={open}
@@ -1126,6 +1127,11 @@ function ReviewsSection({
 	const hasPr = sortedPRs(session).length > 0;
 	const queryClient = useQueryClient();
 	const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+	useEffect(() => {
+		if (!reviewNotice) return;
+		const timer = window.setTimeout(() => setReviewNotice(null), 10_000);
+		return () => window.clearTimeout(timer);
+	}, [reviewNotice]);
 	const reviewsQuery = useQuery({
 		queryKey: ["session-reviews", session.id],
 		enabled: hasPr,
@@ -1167,13 +1173,15 @@ function ReviewsSection({
 	}, [session.id, session.reviewerHarness]);
 	const saveReviewer = useMutation({
 		mutationFn: async (harness: ReviewerHarness | "") => {
-			const { error } = await apiClient.PUT("/api/v1/sessions/{sessionId}/reviewer", {
+			const { data, error } = await apiClient.POST("/api/v1/sessions/{sessionId}/reviews/switch", {
 				params: { path: { sessionId: session.id } },
 				body: { harness: harness || undefined },
 			});
 			if (error) throw new Error(apiErrorMessage(error, "Unable to save reviewer"));
+			if (data) queryClient.setQueryData(["session-reviews", session.id], data);
 		},
 		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: ["session-reviews", session.id] });
 			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 		},
 	});
@@ -1218,6 +1226,42 @@ function ReviewsSection({
 			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 		},
 	});
+	const killReview = useMutation({
+		mutationFn: async () => {
+			const { data, error } = await apiClient.POST("/api/v1/sessions/{sessionId}/reviews/kill", {
+				params: { path: { sessionId: session.id } },
+			});
+			if (error) throw new Error(apiErrorMessage(error, t("inspector.unableKillReviewSession")));
+			return data;
+		},
+		onSuccess: (data) => {
+			setReviewNotice(null);
+			if (data) queryClient.setQueryData(["session-reviews", session.id], data);
+			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
+		},
+	});
+	const [autoInjectReview, setAutoInjectReview] = useState(session.autoInjectReview ?? true);
+	useEffect(() => {
+		setAutoInjectReview(session.autoInjectReview ?? true);
+	}, [session.id, session.autoInjectReview]);
+	const saveAutoInjectReview = useMutation({
+		mutationFn: async (enabled: boolean) => {
+			const { error } = await apiClient.PATCH("/api/v1/sessions/{sessionId}/auto-inject-review", {
+				params: { path: { sessionId: session.id } },
+				body: { autoInjectReview: enabled },
+			});
+			if (error) {
+				throw new Error(apiErrorMessage(error, t("inspector.review.autoInjectError")));
+			}
+		},
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
+		},
+		onError: () => {
+			setAutoInjectReview(session.autoInjectReview ?? true);
+		},
+	});
+
 	const reviewStates = reviewsQuery.data?.reviews ?? [];
 	const scmSummary = useSessionScmSummary(session.id);
 	const prSummaries = sessionPRDisplaySummaries(session, scmSummary.data);
@@ -1229,29 +1273,38 @@ function ReviewsSection({
 	);
 
 	return (
-		<div>
+		<div className="p-2">
 			{/* Running a review is an action; reading them is a list. The action stays
 			    on top, then one list carrying both sources keyed by PR. */}
-				<ReviewPanel
-					config={projectConfigQuery.data}
-					error={reviewsQuery.error ?? triggerReview.error ?? cancelReview.error ?? saveReviewer.error}
+			<ReviewPanel
+				config={projectConfigQuery.data}
+				error={
+					reviewsQuery.error ??
+					triggerReview.error ??
+					cancelReview.error ??
+					killReview.error ??
+					saveReviewer.error ??
+					saveAutoInjectReview.error
+				}
 				isLoading={reviewsQuery.isLoading}
 				isCancelling={cancelReview.isPending}
+				isKilling={killReview.isPending}
+				isSwitchingReviewer={saveReviewer.isPending}
 				isTriggering={triggerReview.isPending}
-				onOpenTerminal={onOpenReviewerTerminal}
 				onCancel={() => cancelReview.mutate()}
+				onKill={() => killReview.mutate()}
 				onTrigger={() => triggerReview.mutate()}
 				reviewerHandleId={reviewsQuery.data?.reviewerHandleId ?? ""}
 				reviewStates={reviewStates}
-					notice={reviewNotice}
-					agentCatalog={agentsQuery.data}
-					reviewerOverride={reviewerOverride}
-					onReviewerOverrideChange={(next) => {
-						setReviewerOverride(next);
-						saveReviewer.mutate(next);
-					}}
-					session={session}
-				/>
+				notice={reviewNotice}
+				agentCatalog={agentsQuery.data}
+				reviewerOverride={reviewerOverride}
+				onReviewerOverrideChange={(next) => {
+					setReviewerOverride(next);
+					saveReviewer.mutate(next);
+				}}
+				session={session}
+			/>
 			<MergedReviewsSection
 				githubPRs={githubReviews}
 				isLoading={scmSummary.isLoading}
@@ -1259,6 +1312,36 @@ function ReviewsSection({
 				runs={reviewsQuery.data?.runs ?? []}
 				session={session}
 			/>
+			<div className="mt-2.5 flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
+				<div className="min-w-0">
+					<div className="flex min-w-0 items-center gap-1.5">
+						<p className="truncate text-xs font-medium text-foreground">{t("inspector.review.autoInject")}</p>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									aria-label={t("inspector.review.autoInjectDescription")}
+								>
+									<Info aria-hidden="true" className="size-icon-2xs" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-60 leading-normal">
+								{t("inspector.review.autoInjectDescription")}
+							</TooltipContent>
+						</Tooltip>
+					</div>
+				</div>
+				<Switch
+					aria-label={t("inspector.review.autoInject")}
+					checked={autoInjectReview}
+					disabled={saveAutoInjectReview.isPending}
+					onCheckedChange={(enabled) => {
+						setAutoInjectReview(enabled);
+						saveAutoInjectReview.mutate(enabled);
+					}}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -1311,8 +1394,15 @@ function MergedReviewsSection({
 		<Section surface title={t("inspector.reviews")}>
 			<div className="flex flex-col divide-y divide-border">
 				{rows.map(([number, { ao, github }]) => {
+					const aoRuns = ao ? (runsByPR.get(ao.prUrl) ?? []) : [];
+					const aoReviewNotInjected = aoRuns.some((run) => run.autoInjectReview === false);
 					const entries = github?.review?.reviews ?? [];
 					const unresolved = (github?.review?.unresolvedBy ?? []).reduce((n, r) => n + r.count, 0);
+					const scmReviewNotInjected =
+						entries.some((review) => review.autoInjectReview === false) ||
+						(github?.review?.unresolvedBy ?? []).some((reviewer) =>
+							reviewer.links.some((link) => link.autoInjectReview === false),
+						);
 					const meta = [
 						ao ? aoReviewMeta(ao) : `#${number}`,
 						unresolved > 0 ? t("inspector.unresolvedCount", { count: unresolved }) : null,
@@ -1334,13 +1424,21 @@ function MergedReviewsSection({
 									    different reviewers, so one harness on the group caption is
 									    wrong as often as it is right, and every run row below already
 									    carries its own agent name and avatar. */}
-									<ReviewSourceLabel>{t("inspector.reviewBySource.ao")}</ReviewSourceLabel>
-									<ReviewerRuns reviewState={ao} runs={runsByPR.get(ao.prUrl) ?? []} />
+									<ReviewSourceLabel
+										marker={aoReviewNotInjected ? t("inspector.review.notInjected") : undefined}
+									>
+										{t("inspector.reviewBySource.ao")}
+									</ReviewSourceLabel>
+									<ReviewerRuns reviewState={ao} runs={aoRuns} />
 								</div>
 							) : null}
-							{entries.length > 0 ? (
+							{entries.length > 0 || unresolved > 0 ? (
 								<div className="flex min-w-0 flex-col gap-2.5">
-									<ReviewSourceLabel>{t("inspector.reviewBySource.github")}</ReviewSourceLabel>
+									<ReviewSourceLabel
+										marker={scmReviewNotInjected ? t("inspector.review.notInjected") : undefined}
+									>
+										{t("inspector.reviewBySource.github")}
+									</ReviewSourceLabel>
 									{entries.map((entry) => (
 										<GithubReviewRow entry={entry} key={`${entry.reviewerId}:${entry.submittedAt}`} />
 									))}
@@ -1363,12 +1461,17 @@ function MergedReviewsSection({
  * edge — enough to bracket the group without spending the vertical space a
  * real section header would cost inside an already-nested row.
  */
-function ReviewSourceLabel({ children }: { children: ReactNode }) {
+function ReviewSourceLabel({ children, marker }: { children: ReactNode; marker?: string }) {
 	return (
 		<div className="flex min-w-0 items-center gap-2">
 			<span className="shrink-0 text-2xs font-bold uppercase tracking-settings-section text-settings-muted">
 				{children}
 			</span>
+			{marker ? (
+				<Badge className="h-4 px-1.5 text-[9px] leading-none text-passive" variant="outline">
+					{marker}
+				</Badge>
+			) : null}
 			<span aria-hidden="true" className="h-px min-w-0 flex-1 bg-border" />
 		</div>
 	);
@@ -1464,6 +1567,7 @@ function mockReviewsResponse(session: WorkspaceSession): ReviewsResponse {
 			const latestRun =
 				pr.review === "approved" || pr.review === "changes_requested"
 					? {
+							autoInjectReview: session.autoInjectReview ?? true,
 							batchId: `demo-batch-${session.id}`,
 							body:
 								pr.review === "approved"
@@ -1482,6 +1586,7 @@ function mockReviewsResponse(session: WorkspaceSession): ReviewsResponse {
 						}
 					: undefined;
 			const run = (over: Record<string, unknown>) => ({
+				autoInjectReview: session.autoInjectReview ?? true,
 				batchId: `demo-batch-${session.id}`,
 				body: "",
 				createdAt: reviewedAt,
@@ -1546,6 +1651,7 @@ function mockReviewsResponse(session: WorkspaceSession): ReviewsResponse {
 	// on the same PR is the case the control exists for.
 	const runs: ReviewRunFacts[] = states.flatMap((state) => {
 		const base = {
+			autoInjectReview: session.autoInjectReview ?? true,
 			batchId: `demo-batch-${session.id}`,
 			githubReviewId: "",
 			prUrl: state.prUrl,
@@ -1601,6 +1707,8 @@ function ReviewPanel({
 	isLoading,
 	isTriggering,
 	isCancelling,
+	isKilling,
+	isSwitchingReviewer,
 	error,
 	notice,
 	agentCatalog,
@@ -1608,7 +1716,7 @@ function ReviewPanel({
 	onReviewerOverrideChange,
 	onTrigger,
 	onCancel,
-	onOpenTerminal,
+	onKill,
 }: {
 	session: WorkspaceSession;
 	config?: ProjectConfig;
@@ -1617,6 +1725,8 @@ function ReviewPanel({
 	isLoading: boolean;
 	isTriggering: boolean;
 	isCancelling: boolean;
+	isKilling: boolean;
+	isSwitchingReviewer: boolean;
 	error: unknown;
 	notice: string | null;
 	agentCatalog?: AgentCatalog;
@@ -1624,7 +1734,7 @@ function ReviewPanel({
 	onReviewerOverrideChange: (next: ReviewerHarness | "") => void;
 	onTrigger: () => void;
 	onCancel: () => void;
-	onOpenTerminal?: OpenReviewerTerminal;
+	onKill: () => void;
 }) {
 	const { t } = useTranslation();
 	if (sortedPRs(session).length === 0) {
@@ -1647,16 +1757,14 @@ function ReviewPanel({
 	const latest = runningRun ?? newestRun;
 	const harness = latest?.harness || config?.reviewers?.[0]?.harness || "claude-code";
 	const projectDefaultLabel = t("newTask.projectDefault");
-	const terminalEnabled = Boolean(reviewerHandleId && onOpenTerminal);
+	const hasReviewerSession = reviewerHandleId.trim() !== "";
 	const reviewRunning = openReviewStates.some((reviewState) => reviewState.status === "running");
 	const reviewHasRun = reviewRunning || Boolean(latest);
 	const runAction = reviewSessionRunAction(openReviewStates, isTriggering);
-	const openReviewerTerminal = () => {
-		if (!terminalEnabled) return;
-		onOpenTerminal?.({ handleId: reviewerHandleId, harness });
-	};
 	const runDisabled =
 		isTriggering ||
+		isKilling ||
+		isSwitchingReviewer ||
 		openReviewStates.length === 0 ||
 		openReviewStates.every((reviewState) => reviewState.status === "ineligible");
 	const primaryReviewActionLabel = reviewRunning
@@ -1664,6 +1772,7 @@ function ReviewPanel({
 			? t("inspector.review.cancelling")
 			: t("inspector.review.cancel")
 		: runAction;
+	const killDisabled = isKilling || isTriggering || isSwitchingReviewer || !hasReviewerSession;
 
 	return (
 		<div className="mb-2.5 flex flex-col">
@@ -1709,7 +1818,7 @@ function ReviewPanel({
 							defaultHarness={harness}
 							defaultOptionLabel={harness ? `${projectDefaultLabel} (${harness})` : projectDefaultLabel}
 							defaultTriggerLabel={harness || projectDefaultLabel}
-							disabled={reviewRunning}
+							disabled={reviewRunning || isKilling || isSwitchingReviewer || isTriggering || isCancelling}
 							installed={agentCatalog?.installed}
 							onChange={(next) => onReviewerOverrideChange(next as ReviewerHarness | "")}
 							supported={agentCatalog?.supported}
@@ -1720,7 +1829,7 @@ function ReviewPanel({
 							<Button
 								aria-label={primaryReviewActionLabel}
 								className="shrink-0 gap-1 px-1.5 [&_svg]:size-icon-sm"
-								disabled={reviewRunning ? isCancelling : runDisabled}
+								disabled={reviewRunning ? isCancelling || isKilling || isSwitchingReviewer : runDisabled}
 								onClick={reviewRunning ? onCancel : onTrigger}
 								size="sm"
 								title={primaryReviewActionLabel}
@@ -1730,27 +1839,26 @@ function ReviewPanel({
 								{reviewRunning ? <X aria-hidden="true" /> : <Play aria-hidden="true" />}
 								<span className="review-run-action-label">{primaryReviewActionLabel}</span>
 							</Button>
-							{reviewHasRun ? (
+							{hasReviewerSession ? (
 								<Button
-									aria-label={t("inspector.openTerminal")}
-									className="shrink-0 gap-1.5 [&_svg]:size-icon-sm"
-									disabled={!terminalEnabled}
-									onClick={openReviewerTerminal}
+									aria-label={isKilling ? t("inspector.review.killingSession") : t("inspector.review.killSession")}
+									className="h-control-md w-control-md shrink-0 p-0 text-error [&_svg]:size-icon-sm"
+									disabled={killDisabled}
+									onClick={onKill}
 									size="sm"
-									title={t("inspector.openTerminal")}
+									title={isKilling ? t("inspector.review.killingSession") : t("inspector.review.killSession")}
 									type="button"
 									variant="ghost"
 								>
-									<Terminal aria-hidden="true" />
-									<span className="review-run-action-label">{t("inspector.openTerminal")}</span>
+									<Trash2 aria-hidden="true" />
 								</Button>
 							) : null}
 						</div>
 					</div>
-					</div>
+				</div>
 				{reviewRunning ? (
 					<div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-							<Loader2 aria-hidden="true" className="size-icon-sm shrink-0 animate-spin text-muted-foreground" />
+						<Loader2 aria-hidden="true" className="size-icon-sm shrink-0 animate-spin text-muted-foreground" />
 						<span className="min-w-0 flex-1 truncate text-2xs font-medium text-muted-foreground">
 							{isCancelling ? t("inspector.review.cancelling") : `Review in progress · ${harness}`}
 						</span>
@@ -2007,13 +2115,24 @@ function runsByPRFrom(openReviewStates: PRReviewState[], runs: ReviewRunFacts[])
 	return byPR;
 }
 
-/** The PRs AO has actually reviewed, or been asked to. */
+function reviewRunHasOutcome(run: ReviewRunFacts | undefined): boolean {
+	return Boolean(
+		run &&
+			(run.verdict?.trim() ||
+				run.status === "complete" ||
+				run.status === "delivered" ||
+				run.status === "failed" ||
+				run.status === "cancelled"),
+	);
+}
+
+/** The PRs AO has an agent review outcome for. */
 function triggeredReviewStatesFrom(openReviewStates: PRReviewState[], runs: ReviewRunFacts[]): PRReviewState[] {
 	return openReviewStates.filter(
 		(reviewState) =>
-			Boolean(reviewState.latestRun) ||
-			Boolean(reviewState.previousRun) ||
-			runs.some((run) => run.prUrl === reviewState.prUrl) ||
+			reviewRunHasOutcome(reviewState.latestRun) ||
+			reviewRunHasOutcome(reviewState.previousRun) ||
+			runs.some((run) => run.prUrl === reviewState.prUrl && reviewRunHasOutcome(run)) ||
 			reviewState.status === "up_to_date" ||
 			reviewState.status === "changes_requested",
 	);

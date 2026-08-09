@@ -7,10 +7,15 @@ INSERT INTO sessions (
     activity_state, activity_last_at, first_signal_at, is_terminated,
     branch, workspace_path, workspace_repo_path, diff_base_sha, diff_base_ref, runtime_handle_id,
     runtime_launch_id, agent_session_id, prompt,
-    preview_url, preview_revision, terminate_on_pr_merge, cleanup_generation,
+    preview_url, preview_revision, terminate_on_pr_merge, cleanup_generation, browser_capability_verifier,
     session_mode, provider_conversation_id, controller_generation,
-    created_at, updated_at, is_pinned, pinned_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    created_at, updated_at, is_pinned, pinned_at, auto_inject_review
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?
+);
 
 -- name: UpdateSession :exec
 UPDATE sessions SET
@@ -19,9 +24,9 @@ UPDATE sessions SET
     branch = ?, workspace_path = ?, workspace_repo_path = ?, diff_base_sha = ?, diff_base_ref = ?, runtime_handle_id = ?,
     runtime_launch_id = ?, agent_session_id = ?, prompt = ?,
     preview_url = ?, preview_revision = ?, terminate_on_pr_merge = ?,
-    cleanup_generation = ?,
+    cleanup_generation = ?, browser_capability_verifier = ?,
     provider_conversation_id = ?, controller_generation = ?, updated_at = ?,
-    is_pinned = ?, pinned_at = ?
+    is_pinned = ?, pinned_at = ?, auto_inject_review = ?
 WHERE id = ?;
 
 -- name: ClaimChatControllerGeneration :execrows
@@ -56,8 +61,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
-    reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation
+    reviewer_harness, is_pinned, pinned_at, browser_capability_verifier,
+    session_mode, provider_conversation_id, controller_generation, auto_inject_review
 FROM sessions WHERE id = ?;
 
 -- name: ListSessionsByProject :many
@@ -67,8 +72,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
-    reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation
+    reviewer_harness, is_pinned, pinned_at, browser_capability_verifier,
+    session_mode, provider_conversation_id, controller_generation, auto_inject_review
 FROM sessions WHERE project_id = ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -78,8 +83,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     created_at, updated_at, display_name, first_signal_at, preview_url,
     preview_revision, cleanup_generation, runtime_launch_id,
     workspace_repo_path, terminate_on_pr_merge, diff_base_sha, diff_base_ref,
-    reviewer_harness, is_pinned, pinned_at,
-    session_mode, provider_conversation_id, controller_generation
+    reviewer_harness, is_pinned, pinned_at, browser_capability_verifier,
+    session_mode, provider_conversation_id, controller_generation, auto_inject_review
 FROM sessions ORDER BY project_id, num;
 
 
@@ -94,6 +99,9 @@ UPDATE sessions SET preview_url = ?, preview_revision = preview_revision + 1, up
 
 -- name: SetSessionTerminateOnPRMerge :execrows
 UPDATE sessions SET terminate_on_pr_merge = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetSessionAutoInjectReview :execrows
+UPDATE sessions SET auto_inject_review = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionPinned :execrows
 UPDATE sessions SET is_pinned = ?, pinned_at = ?, updated_at = ? WHERE id = ?;

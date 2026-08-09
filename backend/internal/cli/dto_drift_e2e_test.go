@@ -108,6 +108,10 @@ func (f *fakeSessionService) SetTerminateOnPRMerge(context.Context, domain.Sessi
 	return domain.Session{}, nil
 }
 
+func (f *fakeSessionService) SetAutoInjectReview(context.Context, domain.SessionID, bool) (domain.Session, error) {
+	return domain.Session{}, nil
+}
+
 func (f *fakeSessionService) Pin(context.Context, domain.SessionID) (domain.Session, error) {
 	return domain.Session{}, nil
 }
@@ -147,6 +151,8 @@ func (f *fakeSessionService) GetWorkspaceFile(context.Context, domain.SessionID,
 func (f *fakeSessionService) StageAttachments(context.Context, domain.SessionID, []ports.SpawnAttachment) ([]string, error) {
 	return nil, nil
 }
+
+func (f *fakeSessionService) InvalidateWorkspaceCache(domain.SessionID) {}
 
 type fakeAgentCatalog struct{}
 

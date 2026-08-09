@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -24,6 +26,7 @@ type Store interface {
 	RenameSession(ctx context.Context, id domain.SessionID, displayName string, updatedAt time.Time) (bool, error)
 	SetSessionPreviewURL(ctx context.Context, id domain.SessionID, previewURL string, updatedAt time.Time) (bool, error)
 	SetSessionTerminateOnPRMerge(ctx context.Context, id domain.SessionID, terminate bool, updatedAt time.Time) (bool, error)
+	SetSessionAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool, updatedAt time.Time) (bool, error)
 	SetSessionPinned(ctx context.Context, id domain.SessionID, isPinned bool, pinnedAt *time.Time, updatedAt time.Time) (bool, error)
 	SetSessionReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness, updatedAt time.Time) (bool, error)
 	GetDisplayPRFactsForSession(ctx context.Context, id domain.SessionID) (domain.PRFacts, bool, error)
@@ -147,6 +150,12 @@ type Service struct {
 	runBackground       func(func())
 	orchestratorLocksMu sync.Mutex
 	orchestratorLocks   map[domain.ProjectID]*sync.Mutex
+	workspaceCache      *workspaceCache
+	// workspaceGroup coalesces concurrent cache-miss compare/status lookups
+	// for the same (session, root): "Expand All" on many files fires that
+	// many GetWorkspaceFile calls at once, and without this each one would
+	// independently spawn its own git subprocesses for identical work.
+	workspaceGroup singleflight.Group
 	// signalCapable reports whether a harness has a hook pipeline that can
 	// deliver activity signals at all. Only capable harnesses are eligible for
 	// the no_signal downgrade: a hook-less harness staying silent forever is
@@ -197,6 +206,7 @@ func NewWithDeps(d Deps) *Service {
 	if s.clock == nil {
 		s.clock = time.Now
 	}
+	s.workspaceCache = newWorkspaceCache(workspaceCacheTTL, s.clock)
 	return s
 }
 
@@ -645,6 +655,18 @@ func (s *Service) SetTerminateOnPRMerge(ctx context.Context, id domain.SessionID
 	updated, err := s.store.SetSessionTerminateOnPRMerge(ctx, id, terminate, time.Now().UTC())
 	if err != nil {
 		return domain.Session{}, fmt.Errorf("set terminate-on-pr-merge %s: %w", id, err)
+	}
+	if !updated {
+		return domain.Session{}, apierr.NotFound("SESSION_NOT_FOUND", "Unknown session")
+	}
+	return s.Get(ctx, id)
+}
+
+// SetAutoInjectReview persists whether new SCM and AO review feedback should be sent to the session.
+func (s *Service) SetAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool) (domain.Session, error) {
+	updated, err := s.store.SetSessionAutoInjectReview(ctx, id, autoInject, time.Now().UTC())
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("set auto-inject review %s: %w", id, err)
 	}
 	if !updated {
 		return domain.Session{}, apierr.NotFound("SESSION_NOT_FOUND", "Unknown session")

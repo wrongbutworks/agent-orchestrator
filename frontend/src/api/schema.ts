@@ -502,6 +502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/{reviewSessionID}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a reviewer-owned hook signal */
+        post: operations["setReviewActivity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -570,6 +587,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/auto-inject-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set the auto-inject review setting for a session */
+        patch: operations["setSessionAutoInjectReview"];
         trace?: never;
     };
     "/api/v1/sessions/{sessionId}/conversation": {
@@ -1072,6 +1106,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{sessionId}/reviews/kill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Kill a worker's reviewer terminal session */
+        post: operations["killReviewSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/reviews/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a worker's reviewer terminal session */
+        post: operations["restoreReviewSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{sessionId}/reviews/submit": {
         parameters: {
             query?: never;
@@ -1083,6 +1151,23 @@ export interface paths {
         put?: never;
         /** Record a reviewer's result for a worker's PR */
         post: operations["submitReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{sessionId}/reviews/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch a worker's reviewer harness */
+        post: operations["switchReviewSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1433,6 +1518,7 @@ export interface components {
         };
         ControllersSessionView: {
             activity: components["schemas"]["DomainActivity"];
+            autoInjectReview: boolean;
             branch?: string;
             /** Format: date-time */
             createdAt: string;
@@ -1453,7 +1539,7 @@ export interface components {
             projectId: string;
             prs: components["schemas"]["SessionPRFacts"][];
             /** @enum {string} */
-            reviewerHarness?: "claude-code" | "codex" | "opencode";
+            reviewerHarness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
             /** @enum {string} */
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "approved" | "mergeable" | "merged";
             /** @enum {string} */
@@ -1690,7 +1776,8 @@ export interface components {
         };
         DelegateTaskRequest: {
             /** @enum {string} */
-            agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "autohand" | "fake";
+            agent?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand" | "fake";
+            attachments?: components["schemas"]["ControllersSpawnAttachmentInput"][];
             brief: string;
             /** @enum {string} */
             mode?: "tui" | "chat";
@@ -1752,6 +1839,12 @@ export interface components {
         InitializeRepositoryResult: {
             path: string;
         };
+        KillReviewResponse: {
+            reviewerHandleId: string;
+            reviewerHarness?: string;
+            reviews: components["schemas"]["PRReviewState"][];
+            runs: components["schemas"]["ReviewRun"][];
+        };
         KillSessionResponse: {
             freed?: boolean;
             ok: boolean;
@@ -1779,6 +1872,7 @@ export interface components {
         };
         ListReviewsResponse: {
             reviewerHandleId: string;
+            reviewerHarness?: string;
             reviews: components["schemas"]["PRReviewState"][];
             runs: components["schemas"]["ReviewRun"][];
         };
@@ -2007,6 +2101,12 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        RestoreReviewResponse: {
+            reviewerHandleId: string;
+            reviewerHarness?: string;
+            reviews: components["schemas"]["PRReviewState"][];
+            runs: components["schemas"]["ReviewRun"][];
+        };
         RestoreSessionResponse: {
             ok: boolean;
             /** @enum {string} */
@@ -2022,6 +2122,7 @@ export interface components {
             sessionId: string;
         };
         ReviewRun: {
+            autoInjectReview: boolean;
             batchId: string;
             body: string;
             /** Format: date-time */
@@ -2144,11 +2245,13 @@ export interface components {
             state: "unknown" | "mergeable" | "conflicting" | "blocked" | "unstable";
         };
         SessionPRReviewCommentLink: {
+            autoInjectReview: boolean;
             file?: string;
             line?: number;
             url?: string;
         };
         SessionPRReviewEntry: {
+            autoInjectReview: boolean;
             body?: string;
             isBot?: boolean;
             reviewUrl?: string;
@@ -2256,6 +2359,32 @@ export interface components {
         SetProjectConfigInput: {
             config: components["schemas"]["ProjectConfig"];
         };
+        SetReviewActivityRequest: {
+            /** @description Native reviewer session identifier used to resume its transcript. */
+            agentSessionId?: string;
+            /** @description AO hook sub-command that produced this signal. */
+            event?: string;
+            /** @description AO process generation that produced the signal. */
+            launchId?: string;
+            /**
+             * @description Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state.
+             * @enum {string}
+             */
+            state?: "active" | "idle" | "waiting_input" | "blocked" | "exited";
+        };
+        SetReviewActivityResponse: {
+            ok: boolean;
+            reviewSessionId: string;
+        };
+        SetSessionAutoInjectReviewRequest: {
+            autoInjectReview: boolean;
+        };
+        SetSessionAutoInjectReviewResponse: {
+            autoInjectReview: boolean;
+            ok: boolean;
+            session: components["schemas"]["ControllersSessionView"];
+            sessionId: string;
+        };
         SetSessionMergePolicyRequest: {
             terminateOnPrMerge: boolean;
         };
@@ -2271,7 +2400,7 @@ export interface components {
         };
         SetSessionReviewerRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "opencode";
+            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
         };
         SettingsResponse: {
             chatHarnesses: string[];
@@ -2304,7 +2433,7 @@ export interface components {
             branch?: string;
             displayName?: string;
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "autohand";
+            harness?: "claude-code" | "codex" | "aider" | "opencode" | "grok" | "droid" | "amp" | "agy" | "crush" | "cursor" | "qwen" | "copilot" | "goose" | "auggie" | "continue" | "devin" | "cline" | "kimi" | "muse" | "kiro" | "kilocode" | "vibe" | "pi" | "kimchi" | "prime-agent" | "autohand";
             issueId?: string;
             /** @enum {string} */
             kind?: "worker" | "orchestrator";
@@ -2379,13 +2508,14 @@ export interface components {
         };
         TriggerReviewRequest: {
             /** @enum {string} */
-            harness?: "claude-code" | "codex" | "opencode";
+            harness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "kiro" | "pi" | "qwen" | "agy" | "continue" | "goose" | "vibe" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
         };
         TriggerReviewResponse: {
             /** @description True when a new review pass was started; false when an existing run for the same commit was reused. */
             created: boolean;
             reviewerHandleId: string;
             reviews: components["schemas"]["PRReviewState"][];
+            runs: components["schemas"]["ReviewRun"][];
         };
         UnregisterPushDeviceResponse: {
             deleted: boolean;
@@ -4177,6 +4307,69 @@ export interface operations {
             };
         };
     };
+    setReviewActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reviewer session identifier, currently the per-harness review row id. */
+                reviewSessionID: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetReviewActivityRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetReviewActivityResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listSessions: {
         parameters: {
             query?: {
@@ -4474,6 +4667,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    setSessionAutoInjectReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSessionAutoInjectReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetSessionAutoInjectReviewResponse"];
                 };
             };
             /** @description Not Found */
@@ -6760,6 +7007,106 @@ export interface operations {
             };
         };
     };
+    killReviewSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KillReviewResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    restoreReviewSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreReviewResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     submitReview: {
         parameters: {
             query?: never;
@@ -6783,6 +7130,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewRunResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    switchReviewSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session identifier, e.g. project-1. */
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSessionReviewerRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListReviewsResponse"];
                 };
             };
             /** @description Bad Request */

@@ -556,24 +556,14 @@
 	);
 }
 
-/* Windows / Linux: rectangular frameless window. There is no rounded macOS
- * window to inset into, so flush the framed panel on every side — top is
- * already covered by the custom titlebar / ShellTopbar, and the left is flush
- * to the sidebar globally (padding-left: 0). Zero the remaining right/bottom
- * insets so the panel fills the full window width instead of floating with a
- * gap on the right and bottom. */
+/* Windows / Linux: a ShellTopbar already supplies the top chrome, so the
+ * framed panel needs no additional top inset. Windows uses its custom
+ * frameless titlebar; Linux uses the standard ShellTopbar. The right/bottom
+ * insets and the shared --radius-center-panel rounding are kept so the panel
+ * matches the macOS framed look. */
 .platform-windows .center-panel-shell,
 .platform-linux .center-panel-shell {
 	padding-top: 0;
-	padding-right: 0;
-	padding-bottom: 0;
-}
-
-/* macOS nested-radius formula (window_radius − inset) only makes sense inside
- * a rounded macOS window. Strip it so the framed panel has sharp corners. */
-.platform-windows .center-panel-surface,
-.platform-linux .center-panel-surface {
-	border-radius: 0;
 }
 
 @utility settings-row-bar {
@@ -585,12 +575,18 @@
 	gap: var(--size-settings-row-icon-gap);
 	border-radius: var(--radius-settings-row);
 	background-color: var(--color-bg-settings-row);
-	padding: var(--size-settings-row-padding);
+	padding-inline: var(--size-settings-row-padding);
+	padding-block: var(--size-settings-row-padding);
 }
 
 /* Tailwind preflight clears button backgrounds; keep settings rows filled. */
 button.settings-row-bar {
 	background-color: var(--color-bg-settings-row);
+}
+
+@utility settings-link-row {
+	border: 1px solid var(--color-border-settings);
+	border-radius: var(--radius-settings-row);
 }
 
 @utility settings-menu-item {
@@ -763,69 +759,57 @@ button.settings-row-bar {
 	opacity: 0.75;
 }
 
-/* The run target is one configuration with two independently editable halves.
-   Equal tracks keep the model anchored while agent names change; the container
-   query moves the quiet sentence label above it only when the modal is narrow. */
-.composer-run-config {
-	container-type: inline-size;
-}
-
-.composer-run-row {
+/* The composer is one continuous surface. Agent and model share equal, stable
+   tracks so changing provider names never moves the model or the primary action;
+   transparent controls keep the row reading as card padding rather than a form. */
+.composer-toolbar {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: center;
-	column-gap: var(--space-3);
+	column-gap: var(--space-2);
+	padding: 0 var(--space-3) var(--space-3);
 }
 
-.composer-run-target {
-	position: relative;
+.composer-prompt-surface {
+	border-radius: inherit;
+}
+
+.composer-prompt-surface[data-dragging="true"] {
+	background-color: var(--color-accent-weak);
+	box-shadow: inset 0 0 0 2px var(--bridge-accent);
+}
+
+.composer-run-controls {
 	display: grid;
-	width: 100%;
-	max-width: var(--size-composer-run-options);
 	min-width: 0;
-	height: var(--size-control-md);
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	overflow: hidden;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background-color: var(--color-bg-composer-chip);
+	grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+	align-items: center;
+	column-gap: var(--space-2);
 }
 
-.composer-run-target::after {
-	position: absolute;
-	top: var(--space-1_5);
-	bottom: var(--space-1_5);
-	left: 50%;
+.composer-toolbar-slot {
+	min-width: 0;
+}
+
+.composer-toolbar-divider {
 	width: 1px;
+	height: var(--space-4);
 	background-color: var(--color-border);
-	content: "";
-	pointer-events: none;
 }
 
-.composer-run-target .composer-run-target-segment {
-	height: 100%;
-	border-radius: 0 !important;
+.composer-toolbar .composer-toolbar-option {
+	height: var(--size-control-md);
+	border-radius: var(--radius-md) !important;
 	background-color: transparent !important;
 }
 
-.composer-run-target .composer-run-target-segment:hover:not(:disabled),
-.composer-run-target .composer-run-target-segment[data-state="open"] {
+.composer-toolbar .composer-toolbar-option:hover:not(:disabled),
+.composer-toolbar .composer-toolbar-option[data-state="open"] {
 	background-color: var(--color-bg-composer-chip-hover) !important;
 }
 
-.composer-run-target .composer-run-target-segment:focus-visible {
+.composer-toolbar .composer-toolbar-option:focus-visible {
 	box-shadow: inset 0 0 0 2px var(--bridge-accent-weak);
-}
-
-@container (max-width: 26rem) {
-	.composer-run-row {
-		grid-template-columns: minmax(0, 1fr);
-		row-gap: var(--space-2);
-	}
-
-	.composer-run-target {
-		max-width: none;
-	}
 }
 
 .composer-value-swap {
@@ -869,10 +853,8 @@ button.settings-row-bar {
 	}
 }
 
-/* Inline value control inside the task composer's "Runs with" sentence. Reads as
-   a value you can change, not as a form field: no visible field chrome until
-   hover/focus. The row gives its two controls equal tracks so changing agent
-   labels never shifts the model control. */
+/* Inline value control inside the task composer's bottom toolbar. Reads as a
+   value you can change, not as a form field: no visible chrome until hover/focus. */
 @utility composer-chip {
 	display: inline-flex;
 	width: auto;
@@ -1502,6 +1484,13 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	transition: none;
 }
 
+/* Keep keyboard focus visible without adding a ring to the sidebar chrome. */
+.sidebar-focusless :focus-visible {
+	background-color: var(--color-interactive-hover) !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
 /* Expanded-only sidebar chrome waits for the rail width transition to finish
  * before painting, so tap-to-expand does not flash labels inside the narrow
  * collapsed rail. */
@@ -1605,6 +1594,41 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	border-color: color-mix(in srgb, var(--color-logo-accent) 45%, var(--color-border-strong));
 	background: var(--color-bg-secondary);
 	box-shadow: var(--elevation-md);
+}
+
+/* The draft grows to seven lines before it becomes its own scroll surface. A
+   narrow inset thumb keeps long prompts legible without the platform scrollbar
+   competing with the composer controls. */
+.chat-composer-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-scrollbar-board) transparent;
+}
+
+.chat-composer-scrollbar::-webkit-scrollbar {
+	width: 8px;
+}
+
+.chat-composer-scrollbar::-webkit-scrollbar-button {
+	display: none;
+	width: 0;
+	height: 0;
+}
+
+.chat-composer-scrollbar::-webkit-scrollbar-track,
+.chat-composer-scrollbar::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.chat-composer-scrollbar::-webkit-scrollbar-thumb {
+	border: 2px solid transparent;
+	border-radius: var(--radius-full);
+	background: var(--color-scrollbar-board);
+	background-clip: content-box;
+}
+
+.chat-composer-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: var(--color-scrollbar-board-hover);
+	background-clip: content-box;
 }
 
 .cursor-chat-human-message {
@@ -2001,7 +2025,6 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	align-items: center;
 	gap: 8px;
 	padding: 0 10px;
-	border-bottom: 1px solid var(--border);
 	/* Matches the shell chrome (bg-sidebar) and the Window Controls Overlay
 	   color pushed in WindowTitlebar/main.ts, so the native min/max/close
 	   strip blends into the bar instead of reading as a separate box. */
@@ -2932,16 +2955,8 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 		background var(--duration-normal) ease;
 }
 
-.browser-panel--agent-active {
-	border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
-	box-shadow:
-		0 0 0 1px color-mix(in srgb, var(--color-accent) 20%, transparent),
-		0 0 28px color-mix(in srgb, var(--color-accent) 10%, transparent),
-		var(--elevation-sm);
-}
-
-/* Maximized workspace overlays: fixed layers portaled to <body>, so they cover
-   the sidebar + topbar too, not just the session area.
+/* Maximized browser overlay: a fixed layer over the app workspace (portaled to
+   <body>, so it covers the sidebar + topbar too, not just the session area).
    Electron's Window Controls Overlay owns the top-right titlebar region on
    Windows, so start below its reported safe-area height. macOS hides the shell
    topbar; windowed mode reserves the native traffic-light band below, while
@@ -2959,6 +2974,14 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	   maximized browser surface interactive even if those regions overlap while
 	   the window is transitioning between layouts. */
 	-webkit-app-region: no-drag;
+}
+
+/* BaseWindow's explicit shell WebContentsView does not always expose the
+   Window Controls Overlay safe-area env value. Keep maximized browser/files
+   surfaces below the Windows native min/max/close controls in that mode. */
+html[data-native-browser-composition="true"][data-ao-platform="win32"] .browser-popout-overlay,
+html[data-native-browser-composition="true"][data-ao-platform="win32"] .files-popout-overlay {
+	top: var(--size-window-titlebar);
 }
 
 /* macOS keeps the native traffic lights visible while the window is not in
@@ -3156,6 +3179,78 @@ body.is-resizing-x [data-slot="sidebar-container"] {
 	background: color-mix(in srgb, var(--red) 8%, var(--bg));
 	color: var(--red);
 	font-size: 12px;
+}
+
+/* Native composition keeps the browser page in an Electron
+ * WebContentsView below the transparent shell renderer. The normal renderer
+ * path remains available for web-only development; these rules remove the
+ * opaque paint layers that would otherwise hide the native page behind the
+ * shell. Toolbar and controls stay opaque so the app chrome remains readable. */
+html[data-native-browser-composition="true"] body:has(.browser-panel[data-browser-native-page="live"]),
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay),
+html[data-native-browser-composition="true"] #root:has(.browser-panel[data-browser-native-page="live"]) {
+	background: transparent;
+}
+
+html[data-native-browser-composition="true"] .platform-windows:has(.browser-panel[data-browser-native-page="live"]),
+html[data-native-browser-composition="true"] .platform-linux:has(.browser-panel[data-browser-native-page="live"]) {
+	background: transparent;
+}
+
+/* A maximized BrowserPanel is portaled directly under <body>, outside the
+ * normal shell root. Clear the shell layers beneath that portal as well, or a
+ * sidebar/center surface can paint an opaque sheet over the live native page
+ * whenever the transparent shell is raised for its tabs/menu portals. */
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .platform-windows,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .platform-linux,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .center-panel-shell,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .center-panel-surface,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root [data-testid="session-detail"],
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .session-split,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .session-inspector,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .session-inspector__body,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root [data-slot="sidebar-container"],
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root [data-slot="sidebar-inner"],
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .dashboard-app-header,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root .session-topbar-surface {
+	background: transparent !important;
+}
+
+/* The popout is the only visible workspace while maximized. Hide the normal
+ * shell subtree instead of letting its terminal/sidebar controls show through
+ * the transparent compositor when the shell is raised for a menu portal. The
+ * BrowserPanel portal and the Windows titlebar remain outside this wrapper and
+ * stay interactive. */
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) #root [data-slot="sidebar-wrapper"] {
+	visibility: hidden;
+}
+
+html[data-native-browser-composition="true"] .center-panel-shell--session:has(.browser-panel[data-browser-native-page="live"]),
+html[data-native-browser-composition="true"] .center-panel-shell--session:has(.browser-panel[data-browser-native-page="live"]) > .center-panel-surface,
+html[data-native-browser-composition="true"] [data-testid="session-detail"]:has(.browser-panel[data-browser-native-page="live"]),
+html[data-native-browser-composition="true"] .session-split:has(.browser-panel[data-browser-native-page="live"]) {
+	background: transparent;
+}
+
+html[data-native-browser-composition="true"] .browser-panel[data-browser-native-page="live"],
+html[data-native-browser-composition="true"] .browser-panel[data-browser-native-page="live"] .browser-panel__content,
+html[data-native-browser-composition="true"] .browser-panel[data-browser-native-page="live"] .browser-panel__viewport {
+	background: transparent !important;
+	box-shadow: none;
+}
+
+/* The inspector rail paints its own opaque background. When its browser tab is
+ * active, clear only that containing rail so the native page remains visible
+ * when the transparent shell is raised for a menu. Other inspector tabs keep
+ * their existing surface unchanged. */
+html[data-native-browser-composition="true"] .session-inspector:has(.browser-panel[data-browser-native-page="live"]),
+html[data-native-browser-composition="true"] .session-inspector:has(.browser-panel[data-browser-native-page="live"]) .session-inspector__body {
+	background: transparent;
+}
+
+html[data-native-browser-composition="true"] .browser-popout-overlay {
+	background: transparent;
 }
 
 @keyframes browser-popout-in {
