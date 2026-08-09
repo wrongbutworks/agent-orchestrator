@@ -40,22 +40,14 @@ import {
 	Undo2,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import type { ShellTerminal } from "../../hooks/useShellTerminals";
-import {
-	emptyTerminalBarLayout,
-	type ReorderableTerminalTabKey,
-	type TerminalBarLayout,
-	type TerminalTabGroup,
-	type TerminalTabKey,
-} from "../../lib/terminal-tab-state";
 import { sameContent, useStableList } from "../../lib/stable-list";
 import { getApiBaseUrl, subscribeApiBaseUrl } from "../../lib/api-client";
 import type { SessionKind, WorkspaceSession } from "../../types/workspace";
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { SessionTerminalBar } from "../SessionTerminalBar";
-import { NewTerminalButton } from "../SessionTerminalTabs";
-import { TerminalTabStrip } from "../TerminalTabStrip";
+import { NewTerminalButton, SessionTerminalTab } from "../SessionTerminalTabs";
+import { TerminalTabStrip, type TerminalTabStripProps } from "../TerminalTabStrip";
 import {
 	ActivityRow,
 	ApprovalCard,
@@ -116,15 +108,7 @@ type TopbarBounds = {
 
 export interface ChatWorkspaceProps {
 	snapshot: ConversationSnapshot;
-	activeTerminalTabKey?: TerminalTabKey;
-	terminalBarLayout?: TerminalBarLayout;
-	shellTerminals?: ShellTerminal[];
-	reviewerTerminal?: { handleId: string; harness: string };
-	onSelectTerminalTab?: (key: TerminalTabKey) => void;
-	onCloseTerminalTab?: (key: ReorderableTerminalTabKey) => void;
-	onPinTerminalTab?: (key: ReorderableTerminalTabKey, pinned: boolean) => void;
-	onReorderTerminalTabs?: (group: TerminalTabGroup, keys: ReorderableTerminalTabKey[]) => void;
-	onRenameShellTerminal?: (handleId: string, title: string) => void;
+	terminalTabs?: TerminalTabStripProps;
 	/** The session title from the sidebar (matches what users see in the left sidebar) */
 	sessionTitle?: string;
 	/** The AO role using this shared conversation surface. */
@@ -213,15 +197,7 @@ export interface ChatWorkspaceProps {
 
 export function ChatWorkspace({
 	snapshot,
-	activeTerminalTabKey,
-	terminalBarLayout,
-	shellTerminals,
-	reviewerTerminal,
-	onSelectTerminalTab,
-	onCloseTerminalTab,
-	onPinTerminalTab,
-	onReorderTerminalTabs,
-	onRenameShellTerminal,
+	terminalTabs,
 	sessionTitle,
 	sessionRole = "worker",
 	controllerTransitioning,
@@ -355,17 +331,9 @@ export function ChatWorkspace({
 			style={{ "--chat-font-size": `${chatFontSize}px` } as CSSProperties}
 		>
 			<ChatHeader
-				activeTerminalTabKey={activeTerminalTabKey}
 				snapshot={snapshot}
-				terminalBarLayout={terminalBarLayout}
-				shellTerminals={shellTerminals}
-				reviewerTerminal={reviewerTerminal}
+				terminalTabs={terminalTabs}
 				sessionTitle={sessionTitle}
-				onSelectTerminalTab={onSelectTerminalTab}
-				onCloseTerminalTab={onCloseTerminalTab}
-				onPinTerminalTab={onPinTerminalTab}
-				onReorderTerminalTabs={onReorderTerminalTabs}
-				onRenameShellTerminal={onRenameShellTerminal}
 				onOpenShell={onOpenShell}
 				openingShell={openingShell}
 				shellError={shellError}
@@ -614,16 +582,8 @@ function readableItems(snapshot: ConversationSnapshot): ConversationItem[] {
 
 function ChatHeader({
 	snapshot,
-	activeTerminalTabKey,
-	terminalBarLayout,
-	shellTerminals,
-	reviewerTerminal,
+	terminalTabs,
 	sessionTitle,
-	onSelectTerminalTab,
-	onCloseTerminalTab,
-	onPinTerminalTab,
-	onReorderTerminalTabs,
-	onRenameShellTerminal,
 	onOpenShell,
 	openingShell,
 	shellError,
@@ -635,16 +595,8 @@ function ChatHeader({
 	topbarBounds,
 }: {
 	snapshot: ConversationSnapshot;
-	activeTerminalTabKey?: TerminalTabKey;
-	terminalBarLayout?: TerminalBarLayout;
-	shellTerminals?: ShellTerminal[];
-	reviewerTerminal?: { handleId: string; harness: string };
+	terminalTabs?: TerminalTabStripProps;
 	sessionTitle?: string;
-	onSelectTerminalTab?: (key: TerminalTabKey) => void;
-	onCloseTerminalTab?: (key: ReorderableTerminalTabKey) => void;
-	onPinTerminalTab?: (key: ReorderableTerminalTabKey, pinned: boolean) => void;
-	onReorderTerminalTabs?: (group: TerminalTabGroup, keys: ReorderableTerminalTabKey[]) => void;
-	onRenameShellTerminal?: (handleId: string, title: string) => void;
 	onOpenShell?: () => void;
 	openingShell?: boolean;
 	shellError?: string;
@@ -656,7 +608,7 @@ function ChatHeader({
 	topbarBounds: TopbarBounds;
 }) {
 	const label = sessionTitle || snapshot.title || snapshot.sessionId;
-	const terminalSession = {
+	const fallbackSession = {
 		id: snapshot.sessionId,
 		workspaceId: "",
 		workspaceName: "",
@@ -680,18 +632,11 @@ function ChatHeader({
 							className="scrollbar-none flex min-w-flex-min flex-1 self-stretch items-center overflow-x-auto"
 							role="tablist"
 						>
-							<TerminalTabStrip
-								activeKey={activeTerminalTabKey ?? `session:${snapshot.sessionId}`}
-								layout={terminalBarLayout ?? emptyTerminalBarLayout()}
-								onClose={(key) => onCloseTerminalTab?.(key)}
-								onPinnedChange={(key, pinned) => onPinTerminalTab?.(key, pinned)}
-								onRenameShell={onRenameShellTerminal}
-								onReorder={(group, keys) => onReorderTerminalTabs?.(group, keys)}
-								onSelect={(key) => onSelectTerminalTab?.(key)}
-								ownerSession={terminalSession}
-								reviewerTerminal={reviewerTerminal}
-								shellTerminals={shellTerminals ?? []}
-							/>
+							{terminalTabs ? (
+								<TerminalTabStrip {...terminalTabs} />
+							) : (
+								<SessionTerminalTab isActive session={fallbackSession} />
+							)}
 						</div>
 						<NewTerminalButton disabled={Boolean(openingShell)} error={shellError} onClick={onOpenShell} />
 					</div>

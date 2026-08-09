@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { SessionView } from "./SessionView";
 import { SessionTopbarProvider } from "./SessionTopbarPortal";
 import { TooltipProvider } from "./ui/tooltip";
+import type { TerminalTabStripProps } from "./TerminalTabStrip";
 import { useUiStore } from "../stores/ui-store";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 
@@ -147,54 +148,46 @@ vi.mock("./chat/SessionChatSurface", () => ({
 }));
 vi.mock("./CenterPane", () => ({
 	CenterPane: ({
-		shellTerminals = [],
-		onCloseShellTerminal,
-		onSelectShellTerminal,
-		onSelectSessionTerminal,
-		onSelectReviewerTerminal,
+		terminalTabs,
 		onNewShellTerminal,
-		reviewerTerminal,
 		terminalTarget,
 	}: {
-		shellTerminals?: Array<{ handleId: string; title: string }>;
-		onCloseShellTerminal?: (handleId: string) => void;
-		onSelectShellTerminal?: (handleId: string) => void;
-		onSelectSessionTerminal?: () => void;
-		onSelectReviewerTerminal?: (target: { handleId: string; harness: string }) => void;
+		terminalTabs?: TerminalTabStripProps;
 		onNewShellTerminal?: () => void;
-		reviewerTerminal?: { handleId: string; harness: string };
 		terminalTarget?: { kind: string; handleId?: string };
-	}) => (
-		<div>
+	}) => {
+		const shellTerminals = terminalTabs?.shellTerminals ?? [];
+		const reviewerTerminal = terminalTabs?.reviewerTerminal;
+		return <div>
 			terminal center
 			<div data-testid="terminal-target">
 				{terminalTarget?.kind === "shell" ? terminalTarget.handleId : (terminalTarget?.kind ?? "worker")}
 			</div>
 			<div data-testid="reviewer-harness">{reviewerTerminal?.harness ?? ""}</div>
 			{reviewerTerminal ? (
-				<button type="button" onClick={() => onSelectReviewerTerminal?.(reviewerTerminal)}>
+				<button type="button" onClick={() => terminalTabs?.onSelect(`reviewer:${reviewerTerminal.handleId}`)}>
 					select reviewer tab
 				</button>
 			) : null}
 			<div data-testid="shell-tabs">{shellTerminals.map((s) => s.title).join(",")}</div>
 			{shellTerminals.map((s) => (
-				<button key={s.handleId} type="button" onClick={() => onSelectShellTerminal?.(s.handleId)}>
+				<button key={s.handleId} type="button" onClick={() => terminalTabs?.onSelect(`shell:${s.handleId}`)}>
 					select {s.title}
 				</button>
 			))}
 			{shellTerminals.map((s) => (
-				<button key={`close-${s.handleId}`} type="button" onClick={() => onCloseShellTerminal?.(s.handleId)}>
+				<button key={`close-${s.handleId}`} type="button" onClick={() => terminalTabs?.onClose(`shell:${s.handleId}`)}>
 					close {s.title}
 				</button>
 			))}
-			<button type="button" onClick={() => onSelectSessionTerminal?.()}>
+			<button type="button" onClick={() => terminalTabs?.onSelect(`session:${terminalTabs.ownerSession.id}`)}>
 				select agent tab
 			</button>
 			<button type="button" onClick={() => onNewShellTerminal?.()}>
 				new terminal
 			</button>
-		</div>
-	),
+		</div>;
+	},
 }));
 vi.mock("./BrowserPanel", () => ({
 	BrowserPanelView: ({
