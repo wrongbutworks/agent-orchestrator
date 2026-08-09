@@ -368,7 +368,7 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 						) : null}
 					</>
 				) : null}
-				{hasTopbarActionZone ? (
+				{hasTopbarActionZone && (!isSessionRoute || isOrchestrator) ? (
 					<span
 						aria-hidden="true"
 						className="workspace-topbar__utility-separator"
@@ -380,16 +380,23 @@ export function ShellTopbar({ embedded = false }: { embedded?: boolean } = {}) {
 				{/* The inspector header owns closing; the shell only restores a fully
 				    collapsed worker rail. Keep this final so it remains at the far right. */}
 				{isSessionRoute && !isOrchestrator && !isInspectorOpen ? (
-					<TopbarButton
-						aria-label={t("shell.openInspector")}
-						aria-pressed="false"
-						onClick={handleToggleInspector}
-						style={noDragStyle}
-						title={t("shell.openInspectorTitle")}
-						variant="icon"
-					>
-						<PanelRightOpen className="size-icon-lg" aria-hidden="true" />
-					</TopbarButton>
+					<>
+						<span
+							aria-hidden="true"
+							className="workspace-topbar__utility-separator"
+							data-testid="topbar-utility-separator"
+						/>
+						<TopbarButton
+							aria-label={t("shell.openInspector")}
+							aria-pressed="false"
+							onClick={handleToggleInspector}
+							style={noDragStyle}
+							title={t("shell.openInspectorTitle")}
+							variant="icon"
+						>
+							<PanelRightOpen className="size-icon-lg" aria-hidden="true" />
+						</TopbarButton>
+					</>
 				) : null}
 			</div>
 		</motion.header>
