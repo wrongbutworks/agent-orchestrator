@@ -79,7 +79,7 @@ export function NewTerminalButton({
 				<TooltipTrigger asChild>
 					<Button
 						aria-label={label}
-						className="shrink-0 text-muted-foreground"
+						className="ml-1 shrink-0 text-muted-foreground"
 						disabled={!onClick || disabled}
 						onClick={onClick}
 						size="icon-sm"
