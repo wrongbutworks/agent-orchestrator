@@ -321,7 +321,6 @@ export function CenterPane({
 								<SessionPaneTab isActive={target.kind === "worker"} label={sessionTabLabel} />
 							)}
 						</div>
-						<NewTerminalButton onClick={onNewShellTerminal} />
 						{tabsOverflow.canScrollRight ? (
 							<button
 								aria-label={t("terminal.scrollTabsRight")}
@@ -333,6 +332,7 @@ export function CenterPane({
 								<ChevronRight aria-hidden="true" className="size-icon-md" />
 							</button>
 						) : null}
+						<NewTerminalButton onClick={onNewShellTerminal} />
 					</div>
 					<div
 						aria-label={t("terminal.controlsAria")}
