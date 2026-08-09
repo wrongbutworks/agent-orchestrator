@@ -19,6 +19,13 @@ import {
 	useWorkspaceFilePaths,
 } from "../../hooks/useConversation";
 import { useSessionBrowserLink } from "../../hooks/useSessionBrowserLink";
+import type { ShellTerminal } from "../../hooks/useShellTerminals";
+import type {
+	ReorderableTerminalTabKey,
+	TerminalBarLayout,
+	TerminalTabGroup,
+	TerminalTabKey,
+} from "../../lib/terminal-tab-state";
 import { can } from "../../types/conversation";
 import type { WorkspaceSession } from "../../types/workspace";
 
@@ -27,12 +34,30 @@ export function SessionChatSurface({
 	onOpenShell,
 	openingShell,
 	shellError,
+	shellTerminals,
+	reviewerTerminal,
+	terminalBarLayout,
+	activeTerminalTabKey,
+	onSelectTerminalTab,
+	onCloseTerminalTab,
+	onPinTerminalTab,
+	onReorderTerminalTabs,
+	onRenameShellTerminal,
 	controllerTransitioning,
 }: {
 	session: WorkspaceSession;
 	onOpenShell?: () => void;
 	openingShell?: boolean;
 	shellError?: string;
+	shellTerminals?: ShellTerminal[];
+	reviewerTerminal?: { handleId: string; harness: string };
+	terminalBarLayout?: TerminalBarLayout;
+	activeTerminalTabKey?: TerminalTabKey;
+	onSelectTerminalTab?: (key: TerminalTabKey) => void;
+	onCloseTerminalTab?: (key: ReorderableTerminalTabKey) => void;
+	onPinTerminalTab?: (key: ReorderableTerminalTabKey, pinned: boolean) => void;
+	onReorderTerminalTabs?: (group: TerminalTabGroup, keys: ReorderableTerminalTabKey[]) => void;
+	onRenameShellTerminal?: (handleId: string, title: string) => void;
 	/** The target controller is being installed by an interface handoff. */
 	controllerTransitioning?: boolean;
 }) {
@@ -103,7 +128,16 @@ export function SessionChatSurface({
 
 	return (
 		<ChatWorkspace
+			activeTerminalTabKey={activeTerminalTabKey}
 			snapshot={snapshot}
+			terminalBarLayout={terminalBarLayout}
+			shellTerminals={shellTerminals}
+			reviewerTerminal={reviewerTerminal}
+			onSelectTerminalTab={onSelectTerminalTab}
+			onCloseTerminalTab={onCloseTerminalTab}
+			onPinTerminalTab={onPinTerminalTab}
+			onReorderTerminalTabs={onReorderTerminalTabs}
+			onRenameShellTerminal={onRenameShellTerminal}
 			onLinkOpen={openLinkInBrowser}
 			sessionTitle={session.title}
 			sessionRole={session.kind}
